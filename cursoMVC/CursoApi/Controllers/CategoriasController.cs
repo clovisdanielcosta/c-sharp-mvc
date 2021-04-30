@@ -1,109 +1,85 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using cursoMVC.Models;
 using Microsoft.EntityFrameworkCore;
-using cursoMVC.Models;
+using Moq;
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using CursoAPI.Controllers;
+using Xunit;
 
-namespace CursoApi.Controllers
+namespace CursoTest
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class CategoriasController : ControllerBase
+    public class CategoriasControllerTest
     {
-        private readonly Context _context;
+        private readonly Mock<DbSet<Categoria>> _mockSet;
+        private readonly Mock<Context> _mockContext;
+        private readonly Categoria _categoria;
 
-        public CategoriasController(Context context)
+        public CategoriasControllerTest()
         {
-            _context = context;
+            _mockSet = new Mock<DbSet<Categoria>>();
+            _mockContext = new Mock<Context>();
+            _categoria = new Categoria { Id = 1, Descricao = "Teste Categoria" };
+
+            _mockContext.Setup(m => m.Categorias).Returns(_mockSet.Object);
+
+            _mockContext.Setup(m => m.Categorias.FindAsync(1))
+                .ReturnsAsync(_categoria);
+
+
+            _mockContext.Setup(m => m.SetModified(_categoria));
+
+            _mockContext.Setup(m => m.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
         }
 
-        // GET: api/Categorias
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Categoria>>> GetCategorias()
+        [Fact]
+        public async Task Get_Categoria()
         {
-            return await _context.Categorias.ToListAsync();
+            var service = new CategoriasController(_mockContext.Object);
+
+            await service.GetCategoria(1);
+
+            _mockSet.Verify(m => m.FindAsync(1),
+                Times.Once());
         }
 
-        // GET: api/Categorias/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<Categoria>> GetCategoria(int id)
+        [Fact]
+        public async Task Put_Categoria()
         {
-            var categoria = await _context.Categorias.FindAsync(id);
+            var service = new CategoriasController(_mockContext.Object);
 
-            if (categoria == null)
-            {
-                return NotFound();
-            }
+            await service.PutCategoria(1, _categoria);
 
-            return categoria;
+            _mockContext.Verify(m => m.SaveChangesAsync(It.IsAny<CancellationToken>()),
+                Times.Once());
         }
 
-        // PUT: api/Categorias/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for
-        // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutCategoria(int id, Categoria categoria)
+        [Fact]
+        public async Task Post_Categoria()
         {
-            if (id != categoria.Id)
-            {
-                return BadRequest();
-            }
+            var service = new CategoriasController(_mockContext.Object);
+            await service.PostCategoria(_categoria);
 
-            _context.Entry(categoria).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!CategoriaExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            return NoContent();
+            _mockSet.Verify(x => x.Add(_categoria), Times.Once);
+            _mockContext.Verify(m => m.SaveChangesAsync(It.IsAny<CancellationToken>()),
+                Times.Once());
         }
 
-        // POST: api/Categorias
-        // To protect from overposting attacks, enable the specific properties you want to bind to, for
-        // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
-        [HttpPost]
-        public async Task<ActionResult<Categoria>> PostCategoria(Categoria categoria)
+        [Fact]
+        public async Task Delete_Categoria()
         {
-            _context.Categorias.Add(categoria);
-            await _context.SaveChangesAsync();
+            var service = new CategoriasController(_mockContext.Object);
+            await service.DeleteCategoria(1);
 
-            return CreatedAtAction("GetCategoria", new { id = categoria.Id }, categoria);
+            _mockSet.Verify(m => m.FindAsync(1),
+                Times.Once());
+            _mockSet.Verify(x => x.Remove(_categoria), Times.Once);
+            _mockContext.Verify(m => m.SaveChangesAsync(It.IsAny<CancellationToken>()),
+                Times.Once());
         }
 
-        // DELETE: api/Categorias/5
-        [HttpDelete("{id}")]
-        public async Task<ActionResult<Categoria>> DeleteCategoria(int id)
-        {
-            var categoria = await _context.Categorias.FindAsync(id);
-            if (categoria == null)
-            {
-                return NotFound();
-            }
-
-            _context.Categorias.Remove(categoria);
-            await _context.SaveChangesAsync();
-
-            return categoria;
-        }
-
-        private bool CategoriaExists(int id)
-        {
-            return _context.Categorias.Any(e => e.Id == id);
-        }
     }
 }
